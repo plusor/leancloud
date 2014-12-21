@@ -1,5 +1,6 @@
 require 'lean_cloud/modules'
 require 'lean_cloud/configuration'
+require 'logger'
 module LeanCloud
   class << self
 
@@ -9,6 +10,14 @@ module LeanCloud
   
     def config
       @config ||= Configuration.instance
+    end
+
+    def logger
+      if defined?(Rails)
+        Rails.logger
+      else
+        Logger.new(STDOUT)
+      end
     end
   end
 

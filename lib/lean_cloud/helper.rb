@@ -18,30 +18,20 @@ module LeanCloud
         end
       end
 
-      def route(name, options={})
-        add_route(name, options)
+      def route(name, options={}, &block)
+        add_route(name, options, &block)
       end
 
-      def match(name, options={})
+      def match(name, options={}, &block)
         raise "`as' can't be nil!" if !options[:as]
-        add_route(options.delete(:as), options, name)
+        add_route(options.delete(:as), options, name, &block)
       end
 
-      def add_route(name, options={},match=nil)
+      def add_route(name, options={},match=nil, &block)
         options[:namespace] ||= namespace
-        routes << Route.new(name, options, match)
-      end
-
-      def respond_to?(method_id)
-        routes.any? {|route| route.name.to_s == method_id.to_s}
-      end
-
-      def method_missing(method_id, *args, &block)
-        if route=routes.find {|route| route.name.to_s == method_id.to_s}
-          dispatch(route, *args, &block)
-        else
-          super
-        end
+        route = Route.new(name, options, match, &block)
+        define_singleton_method(name) {|*args, &block| dispatch(route, *args, &block) }
+        routes << route
       end
     end
   end

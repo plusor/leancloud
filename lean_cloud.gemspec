@@ -10,8 +10,8 @@ Gem::Specification.new do |s|
   s.authors     = ["plusrez"]
   s.email       = ["plusor@icloud.com"]
   s.homepage    = "https://github.com/plusrez/lean_cloud"
-  s.summary     = "TODO: Summary of LeanCloud."
-  s.description = "TODO: Description of LeanCloud."
+  s.summary     = "LeanCloud SDK."
+  s.description = "LeanCloud SDK."
   s.license     = "MIT"
 
   s.files = `git ls-files`.split("\n")

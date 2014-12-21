@@ -2,5 +2,5 @@
 LeanCloud::Base.register "Function", namespace: "functions" do
   # /1.1/functions
   # 调用 Cloud Code 函数
-  only :create
+  match ":name", via: :post, as: :run
 end

@@ -1,3 +1,4 @@
+require 'lean_cloud/version'
 require 'active_support/hash_with_indifferent_access'
 require 'active_support/core_ext/module/delegation'
 module LeanCloud
@@ -5,7 +6,7 @@ module LeanCloud
 
     attr_accessor :options
 
-    delegate :app_id, :app_key, :version, :http_adapter, :host, to: :options
+    delegate :app_id, :app_key, :master_key, :version, :http_adapter, :host, to: :options
     delegate :get, :put, :post, :delete, to: :instance
 
     def initialize(options)
@@ -16,12 +17,18 @@ module LeanCloud
       http_adapter
     end
 
-    def instance
-      adapter.new(url, headers: headers)
+    def instance(options={}, &block)
+      adapter.new(url, headers: headers, &block)
     end
 
-    def headers
-      {"X-AVOSCloud-Application-Id" => app_id, "X-AVOSCloud-Application-Key" => app_key, 'Content-Type' => 'application/json' }
+    def headers(options={})
+      {
+        "X-AVOSCloud-Application-Id"  => app_id,
+        "X-AVOSCloud-Application-Key" => app_key,
+        "X-AVOSCloud-Master-Key"      => master_key,
+        'Content-Type'                => 'application/json',
+        'User-Agent'                  => "LeanCloud SDK Ruby / #{LeanCloud::VERSION}"
+      }.merge(options)
     end
 
     def url
