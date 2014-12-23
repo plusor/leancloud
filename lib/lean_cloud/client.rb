@@ -10,7 +10,7 @@ module LeanCloud
     delegate :get, :put, :post, :delete, to: :instance
 
     def initialize(options)
-      @options = options
+      @options = LeanCloud.config.dup.merge(options)
     end
 
     def adapter

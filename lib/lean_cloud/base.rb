@@ -20,9 +20,10 @@ module LeanCloud
         klass.class_eval do
           include Helper
 
-          cattr_accessor :routes, :namespace
+          cattr_accessor :routes, :namespace, :settings
 
           self.routes ||= []
+          self.settings = {}
           self.namespace = options[:namespace]
 
           class_exec(&block)
@@ -30,7 +31,7 @@ module LeanCloud
       end
 
       def client(options={}, &block)
-        Client.new(LeanCloud.config).instance(options,&block)
+        Client.new(settings).instance(options,&block)
       end
 
       def dispatch(route, *args, &block)
