@@ -2,8 +2,8 @@
 LeanCloud::Base.register "Sms" do
   # /1.1/requestSmsCode	
   # 请求发送短信验证码
-  route :requestSmsCode, via: :post
+  route :requestSmsCode, via: :post, as: :deliver
   # /1.1/verifySmsCode/<code>
   # 验证短信验证码
-  match "verifySmsCode/:code", via: :post, as: :verify_sms_code
+  match "verifySmsCode/:code", via: :post, as: :verify
 end
