@@ -1,3 +1,4 @@
+#encoding: utf-8
 LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
   extend  ActiveModel::Naming
   include ActiveModel::Validations
@@ -22,43 +23,21 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
       new show(*args, &block)
     end
 
-    def id
-      objectId
+    def find_by_id(id)
+      find(id)
     end
 
     def create_with_upload(attributes,&block)
       room = new(attributes)
       return room.errors if !room.valid?
 
-      cover = room.cover
-      request = LeanCloud::File.upload(cover.original_filename) do |req|
-        req.headers["Content-Type"] = cover.content_type
-        req.body = cover.tempfile.read
-      end
+      apply(room)
 
-      if !request.is_a?(Hash) || !request.key?("objectId")
-
-        room.errors.add(:base, request)
-        return room
-      end
-
-      attributes[:cover] = {
-        objectId: request["objectId"],
-        className: "_File",
-        __type: "Pointer"
-      }
-
-      attributes[:avosGroup] = {
-        __type: "Pointer",
-        objectId: LeanCloud::AVOSRealtimeGroups.create(m: [])["objectId"],
-        "className" => 'AVOSRealtimeGroups'
-      }
-
-      result = create_without_upload(attributes, &block)
+      result = create_without_upload(room.attributes, &block)
 
       Rails.logger.info result.to_json
 
-      if !request.is_a?(Hash) || result.key?("objectId")
+      if !result.key?("objectId")
         room.errors.add(:base, result)
         room
       else
@@ -66,10 +45,68 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
       end
     end
     alias_method_chain :create, :upload
+
+    def update_with_upload(id, attributes, &block)
+      room = new(attributes.merge(objectId: id))
+      apply(room)
+
+      result = update_without_upload(room.id, room.attributes.reject {|k, v| v.nil?}, &block)
+
+      Rails.logger.info result.to_json
+
+      if result.key?("objectId")
+        room.errors.add(:base, result)
+        room
+      else
+        room
+      end
+    end
+    alias_method_chain :update, :upload
+
+    # 更新图片, 创建群聊
+    def apply(object)
+      cover = object.cover
+      if !cover.is_a?(Hash) && cover.present?
+        request = LeanCloud::File.upload(cover.original_filename) do |req|
+          req.headers["Content-Type"] = cover.content_type
+          req.body = cover.tempfile.read
+        end
+
+        if !request.is_a?(Hash) || !request.key?("objectId")
+
+          object.errors.add(:base, request)
+          raise "图片上传失败"
+        end
+
+        object.cover = {
+          objectId: request["objectId"],
+          className: "_File",
+          __type: "Pointer"
+        }
+      end
+
+      object.avosGroup = {
+        __type: "Pointer",
+        objectId: LeanCloud::AVOSRealtimeGroups.create(m: [])["objectId"],
+        "className" => 'AVOSRealtimeGroups'
+        } if object.id.blank? && !object.avosGroup.is_a?(Hash)
+    end
   end
 
   def initialize(attrs={})
     assign_attributes(attrs)
+  end
+
+  def id
+    objectId
+  end
+
+  def to_param
+    id
+  end
+
+  def persisted?
+    !id.nil?
   end
 
   def event_id=(val)
@@ -80,18 +117,27 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
     @event_id = val
   end
 
+  def event_id
+    @event_id || sourceType == "Event" && sourceId
+  end
+
   def event
     @event ||= sourceType.constantize.find(sourceId)
   end
 
+  def uuid
+    event.try(:uuid) rescue nil
+  end
+
   def assign_attributes(attrs={})
+    multi_parameter_attributes = []
     attrs.symbolize_keys.slice(*self.class.columns).each do |attribute, value|
       send("#{attribute}=", value)
     end
   end
 
   def attributes
-    self.class.columns.map {|attribute| [attribute, send(attribute)]}.to_h
+    self.class.columns.map {|attribute| [attribute, instance_variable_get("@#{attribute}")]}.to_h
   end
 
   def hide
@@ -101,21 +147,43 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
   def update(attrs={})
     self.class.update(id, attrs) if id.present?
   end
+
+  def destroy
+    self.class.destroy(id)
+  end
+
+  def destroy_with_relation
+    LeanCloud::File.destroy(cover["objectId"])
+    LeanCloud::AVOSRealtimeGroups.destroy(avosGroup["objectId"])
+    destroy_without_relation
+  end
+
+  alias_method_chain :destroy, :relation
   
   def hosts=(val)
-    @hosts = val.to_s.split(',') if val.present?
+    @hosts = val.is_a?(Array) ? val : split_area(val)
+    @hosts << uuid if uuid && !@hosts.include?(uuid)
+  end
+
+  def hosts
+    Array.wrap(@hosts).join("\n")
   end
 
   def admins=(val)
-    @admins = val.to_s.split(',') if val.present?
+    @admins = val.is_a?(Array) ? val : split_area(val)
+    @admins << uuid if uuid && !@admins.include?(uuid)
+  end
+
+  def admins
+    Array.wrap(@admins).join("\n")
+  end
+
+  def split_area(val)
+    val.to_s.strip.split(/\r|\n|,|;/).reject {|x| x.blank?}
   end
 
   def save
     id.present? ? update(attributes) : self.class.create(attributes)
-  end
-
-  def destroy
-    self.class.destroy(id)
   end
 
   def to_key
@@ -123,21 +191,31 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
   end
 
   def status_name
-    STATUS[status.to_sym]
+    self.class.status_hash[status.to_sym]
   end
 
   def liveStartAt=(val)
+    return @liveStartAt=val if val.is_a?(Hash)
     @liveStartAt = {
       __type: "Date",
-      "iso" => val
+      "iso" => val.to_time(:utc).iso8601(3)
     }
   end
 
   def liveEndAt=(val)
+    return @liveEndAt=val if val.is_a?(Hash)
     @liveEndAt = {
       __type: "Date",
-      "iso" => val
+      "iso" => val.to_time(:utc).iso8601(3)
     }
+  end
+
+  def liveStartAt
+    @liveStartAt.is_a?(Hash) && @liveStartAt["iso"].to_time
+  end
+
+  def liveEndAt
+    @liveEndAt.is_a?(Hash) && @liveEndAt["iso"].to_time
   end
 
   # 踢人
@@ -149,10 +227,4 @@ LeanCloud::Base.register "LiveRoom", namespace: "classes/LiveRoom" do
   def logs
     LeanCloud::Message.logs(convid: avosGroup["objectId"]) if avosGroup.is_a?(Hash).present?
   end
-  
-  # class << self
-  #   def self.column_names
-  #     ATTRIBUTES
-  #   end
-  # end
 end

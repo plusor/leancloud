@@ -51,5 +51,5 @@ LeanCloud::GameScore.create({score: 'xxx'})
 LeanCloud::GameScore.show("11f6ad8ec52a2984abaafd7c3b516503785c2072")
 LeanCloud::GameScore.update("11f6ad8ec52a2984abaafd7c3b516503785c2072", {score: 'e'})
 LeanCloud::GameScore.destroy("11f6ad8ec52a2984abaafd7c3b516503785c2072")
-LeanCloud::GameScore.search(where: {post: {_type: 'xxx'}})
+LeanCloud::GameScore.search(where: {post: {_type: 'xxx'}}.to_json)
 ```
