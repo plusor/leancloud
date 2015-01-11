@@ -14,7 +14,7 @@ module LeanCloud
       namespace = options[:namespace] if !options[:unscope]
       id = args.shift                 if options[:on].to_sym == :member
       path = !match ? name.to_s : match.sub(/(:\w+)/, args[0].to_s) if !options[:root]
-      [namespace, id, path].compact.join('/')
+      URI.encode [namespace, id, path].compact.join('/')
     end
   end
 end
