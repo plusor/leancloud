@@ -38,7 +38,7 @@ module LeanCloud
         options = args.extract_options!
         data = parse_data(route, options)
         request = client(&route.block).send(route.request, route.url(*args), data, &block)
-        LeanCloud.logger.info request.to_json
+        # LeanCloud.logger.info request.to_json
         parse_body(request)
       end
 
